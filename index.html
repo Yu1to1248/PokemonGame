@@ -8,7 +8,8 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;
   touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
-canvas{display:block;width:100%;height:100%}
+canvas{display:block;width:100%;height:100%;touch-action:none;-webkit-tap-highlight-color:transparent}
+body{touch-action:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
 </style>
 </head>
 <body>
@@ -27,8 +28,10 @@ window.addEventListener('error', function(e) {
 });
 const CV=document.getElementById('c'),ctx=CV.getContext('2d');
 let W=0,H=0;
+let SAFE=64;
+function updSafe(){const v=window.visualViewport;const ih=v?v.height:window.innerHeight;SAFE=ih<500?44:(ih<750?56:64);}
 function resize(){const v=window.visualViewport;W=CV.width=v?v.width:window.innerWidth;H=CV.height=v?v.height:window.innerHeight;}
-resize();window.addEventListener('resize',resize);if(window.visualViewport)window.visualViewport.addEventListener('resize',resize);
+resize();updSafe();window.addEventListener('resize',()=>{resize();updSafe();});if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>{resize();updSafe();});
 if(!CanvasRenderingContext2D.prototype.roundRect){
   CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
     const R=Math.min(r,w/2,h/2);
@@ -42,8 +45,9 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
 const WW=2400,WH=2400;
 const cam={x:WW/2,y:WH/2};
 const camX=()=>W/2-cam.x,camY=()=>H/2-cam.y;
+function updSelScroll(dt){if(!selScrollDragging&&Math.abs(selScrollVY)>.5){selScrollY=Math.max(selScrollMax,Math.min(0,selScrollY+selScrollVY));selScrollVY*=.88;}else if(!selScrollDragging)selScrollVY=0;}
 function updCam(){if(!PL)return;cam.x=Math.max(W/2,Math.min(WW-W/2,PL.x));cam.y=Math.max(H/2,Math.min(WH-H/2,PL.y));}
-const SAFE=64;
+// (SAFE moved to top)
 
 // ── MAP DECO ─────────────────────────────────────────────
 const DCOLS=['#3366ff','#ff44aa','#4499ff','#aa44ff','#ffaa33','#44ffee'];
@@ -1988,10 +1992,10 @@ function drawAtk(){
 // ── CONTROLS ─────────────────────────────────────────────
 const joy={active:false,tid:-1,bx:0,by:0,cx:0,cy:0,dx:0,dy:0,R:0};
 const btns={skill1:{tid:-1,pressed:false},skill2:{tid:-1,pressed:false},special:{tid:-1,pressed:false}};
-const getBR=()=>Math.max(40,Math.min(W,H)*.077);
-const getJR=()=>Math.max(54,Math.min(W,H)*.108);
-function getBP(){const R=getBR(),S=R*1.05,bx=W-R-16,by=H-R-SAFE-10;return{skill1:{x:bx-S*1.85,y:by+S*.35},skill2:{x:bx,y:by+S*.35},special:{x:bx-S*.92,y:by-S*.9}};}
-function getJP(){const R=getJR();return{x:R+20,y:H-R-SAFE-10};}
+const getBR=()=>Math.max(52,Math.min(W,H)*.098);
+const getJR=()=>Math.max(62,Math.min(W,H)*.125);
+function getBP(){const R=getBR(),isPort=H>W,S=R*(isPort?1.15:1.12),bx=W-R-18,by=H-R-SAFE-(isPort?8:12);return{skill1:{x:bx-S*1.9,y:by+S*.3},skill2:{x:bx,y:by+S*.3},special:{x:bx-S*.95,y:by-S*.92}};}
+function getJP(){const R=getJR();return{x:R+22,y:H-R-SAFE-12};}
 CV.addEventListener('touchstart',e=>{e.preventDefault();hStart(Array.from(e.changedTouches));},{passive:false});
 CV.addEventListener('touchmove', e=>{e.preventDefault();hMove(Array.from(e.touches));},{passive:false});
 CV.addEventListener('touchend',  e=>{e.preventDefault();hEnd(Array.from(e.changedTouches));},{passive:false});
@@ -2015,15 +2019,15 @@ document.addEventListener('keyup',e=>{keys[e.code]=false;});
 function hStart(ts){
   for(const t of ts){const tx=t.clientX,ty=t.clientY;
     if(state==='mode_select'){handleModeTap(tx,ty);continue;}
-    if(state==='select'){handleSelectTap(tx,ty);continue;}
+    if(state==='select'||state==='boss_select'){selScrollDragging=true;selTouchY0=ty;selTouchY1=ty;if(state==='select')handleSelectTap(tx,ty);else handleBossSelectTap(tx,ty);continue;}
     if(state==='boss_select'){handleBossSelectTap(tx,ty);continue;}
     if(state==='gameover'){restartToSelect();continue;}
-    let hit=false;if(tx>W*.42){const bp=getBP(),BR=getBR()*1.25;for(const[k,pos]of Object.entries(bp)){if(btns[k].tid===-1&&Math.hypot(tx-pos.x,ty-pos.y)<BR){btns[k].tid=t.identifier;btns[k].pressed=true;hit=true;if(PL){if(k==='skill1')PL.useSkill1();else if(k==='skill2')PL.useSkill2();else PL.useSpecial();}break;}}}
-    if(!hit&&tx<W*.58&&joy.tid===-1){const R=getJR();joy.active=true;joy.tid=t.identifier;joy.bx=tx;joy.by=ty;joy.cx=tx;joy.cy=ty;joy.dx=0;joy.dy=0;joy.R=R;}
+    let hit=false;if(tx>W*.38){const bp=getBP(),BR=getBR()*1.45;for(const[k,pos]of Object.entries(bp)){if(btns[k].tid===-1&&Math.hypot(tx-pos.x,ty-pos.y)<BR){btns[k].tid=t.identifier;btns[k].pressed=true;hit=true;if(PL){if(k==='skill1')PL.useSkill1();else if(k==='skill2')PL.useSkill2();else PL.useSpecial();}break;}}}
+    if(!hit&&tx<W*.62&&joy.tid===-1){const R=getJR();joy.active=true;joy.tid=t.identifier;joy.bx=tx;joy.by=ty;joy.cx=tx;joy.cy=ty;joy.dx=0;joy.dy=0;joy.R=R;}
   }
 }
-function hMove(ts){for(const t of ts){if(t.identifier===joy.tid&&joy.active){const dx=t.clientX-joy.bx,dy=t.clientY-joy.by,d=Math.hypot(dx,dy),max=joy.R,nx=d>max?dx/d*max:dx,ny=d>max?dy/d*max:dy;joy.cx=joy.bx+nx;joy.cy=joy.by+ny;joy.dx=nx/max;joy.dy=ny/max;}}}
-function hEnd(ts){for(const t of ts){if(t.identifier===joy.tid){joy.active=false;joy.tid=-1;joy.dx=0;joy.dy=0;}for(const k of Object.keys(btns)){if(t.identifier===btns[k].tid){btns[k].tid=-1;btns[k].pressed=false;}}}}
+function hMove(ts){for(const t of ts){if(selScrollDragging){const dy=t.clientY-selTouchY1;selScrollY=Math.max(selScrollMax,Math.min(0,selScrollY+dy));selScrollVY=dy;selTouchY1=t.clientY;}if(t.identifier===joy.tid&&joy.active){const dx=t.clientX-joy.bx,dy=t.clientY-joy.by,d=Math.hypot(dx,dy),max=joy.R,nx=d>max?dx/d*max:dx,ny=d>max?dy/d*max:dy;joy.cx=joy.bx+nx;joy.cy=joy.by+ny;joy.dx=nx/max;joy.dy=ny/max;}}}
+function hEnd(ts){selScrollDragging=false;for(const t of ts){if(t.identifier===joy.tid){joy.active=false;joy.tid=-1;joy.dx=0;joy.dy=0;}for(const k of Object.keys(btns)){if(t.identifier===btns[k].tid){btns[k].tid=-1;btns[k].pressed=false;}}}}
 
 // ── BOSS ─────────────────────────────────────────────────
 
@@ -2035,7 +2039,7 @@ function startGame(ct,mode,bct){
   cam.x=WW/2;cam.y=WH/2;state='playing';
   if(gameMode==='boss'){boss=new Boss(bossCt);spawnT=-0.5;}
 }
-function restartToSelect(){state='mode_select';PL=null;boss=null;enemies.length=0;clrAttacks();pts.length=0;score=0;wave=1;slow=1;}
+function restartToSelect(){state='mode_select';PL=null;boss=null;enemies.length=0;clrAttacks();pts.length=0;score=0;wave=1;slow=1;selScrollY=0;selScrollVY=0;}
 function updSpawn(dt){
   if(gameMode==='boss'){
     // Boss mode: spawn a few regular enemies as support
@@ -2102,9 +2106,9 @@ function drawWorld(){
 // ── HUD ───────────────────────────────────────────────────
 function drawHUD(){
   if(!PL)return;
-  const HM=14,BW=192,BH=20,hpR=PL.hp/PL.maxHp;
+  const HM=Math.max(10,W*.025)|0,BW=Math.min(W*.44,220)|0,BH=Math.max(18,H*.028)|0,hpR=PL.hp/PL.maxHp;
   drawBar(HM,HM,BW,BH,'#331111',hpR<.3?'#ff2222':hpR<.6?'#ff6622':'#ff4444','#ff7766',hpR);
-  ctx.fillStyle=hpR<.3?'#ffaa88':'#fff';ctx.font='bold 12px Arial';ctx.fillText(`HP ${Math.ceil(PL.hp)} / ${PL.maxHp}`,HM+6,HM+BH-3);
+  ctx.fillStyle=hpR<.3?'#ffaa88':'#fff';ctx.font=`bold ${Math.max(10,BH*.6)|0}px Arial`;ctx.fillText(`HP ${Math.ceil(PL.hp)} / ${PL.maxHp}`,HM+6,HM+BH-3);
   const GY=HM+BH+8,gR=PL.gauge/100;
   const GCS={dialga:['#4488ff','#88ccff'],palkia:['#ff44aa','#ffaadd'],kyurem:['#22aaee','#88eeff'],rayquaza:['#44ff88','#88ffbb'],groudon:['#cc4400','#ff8844'],kyogre:['#0055ff','#44aaff'],wkyurem:['#ff8822','#ffcc88'],zacian:['#5588ff','#aaccff'],miraidon:['#44aaff','#88ddff'],koraidon:['#ff6633','#ffaa66'],mewtwo:['#cc44ff','#ee88ff'],giratina:['#6633aa','#aa66cc'],necrozmaD:['#ffdd44','#ffee88'],necrozmaW:['#9944ff','#cc88ff'],hooh:['#ffcc44','#ffee88'],lugia:['#aabbdd','#ccddf0'],garchomp:['#4455cc','#8899ff'],charizard:['#ff5522','#ffaa66'],lucario:['#2244cc','#6688ff'],greninja:['#0d6d8e','#44aacc'],gardevoir:['#ff44aa','#ffaacc']};
   const [gc2,gc3]=GCS[PL.ct]||['#fff','#fff'];
@@ -2113,9 +2117,9 @@ function drawHUD(){
   if(PL.gauge>=100&&!locked){ctx.shadowColor=gc2;ctx.shadowBlur=10;}
   let spLabel=`SP ${Math.floor(PL.gauge)} / 100`;
   if(PL.mega)spLabel='MEGA RAYQUAZA';if(PL.primal&&PL.ct==='groudon')spLabel='ゲンシグラードン';if(PL.primal&&PL.ct==='kyogre')spLabel='ゲンシカイオーガ';
-  ctx.fillStyle=PL.gauge>=100&&!locked?'#ffff22':locked?'#ffcc44':'#fff';ctx.font='bold 12px Arial';ctx.fillText(spLabel,HM+6,GY+BH-3);ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(0,0,0,.48)';ctx.beginPath();ctx.roundRect(W-140,HM,126,58,8);ctx.fill();
-  ctx.fillStyle='#fff';ctx.font='bold 16px Arial';ctx.textAlign='right';ctx.fillText(`${score}`,W-HM,HM+22);ctx.font='11px Arial';ctx.fillStyle='#999';ctx.fillText('SCORE',W-HM,HM+38);ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.fillText(`WAVE ${wave}`,W-HM,HM+54);ctx.textAlign='left';
+  ctx.fillStyle=PL.gauge>=100&&!locked?'#ffff22':locked?'#ffcc44':'#fff';ctx.font=`bold ${Math.max(10,BH*.6)|0}px Arial`;ctx.fillText(spLabel,HM+6,GY+BH-3);ctx.shadowBlur=0;
+  const sW=Math.min(W*.35,136)|0;ctx.fillStyle='rgba(0,0,0,.48)';ctx.beginPath();ctx.roundRect(W-sW-HM,HM,sW,BH*3,8);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(14,BH*.75)|0}px Arial`;ctx.textAlign='right';ctx.fillText(`${score}`,W-HM,HM+BH*.8);ctx.font=`${Math.max(10,BH*.55)|0}px Arial`;ctx.fillStyle='#999';ctx.fillText('SCORE',W-HM,HM+BH*1.55);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(11,BH*.6)|0}px Arial`;ctx.fillText(`WAVE ${wave}`,W-HM,HM+BH*2.3);ctx.textAlign='left';
   drawMinimap();
   let lbl='';
   if(PL.specialOn&&PL.ct==='dialga')lbl='⚡ 時の咆哮 ⚡';
@@ -2131,8 +2135,9 @@ function drawBar(x,y,w,h,bg,fill,stroke,ratio){
   ctx.strokeStyle=stroke;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(x,y,w,h,h/2);ctx.stroke();ctx.restore();
 }
 function drawMinimap(){
-  const MX=W-104,MY=82,MW=88,MH=68;ctx.save();ctx.fillStyle='rgba(0,0,0,.58)';ctx.beginPath();ctx.roundRect(MX-3,MY-3,MW+6,MH+6,5);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;ctx.stroke();
-  const sx=MW/WW,sy=MH/WH;ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;ctx.strokeRect(MX+(cam.x-W/2)*sx,MY+(cam.y-H/2)*sy,W*sx,H*sy);
+  if(W<420&&H<420)return;// 超小画面では非表示
+  const mmS=Math.min(W,H)<500?.65:1;const MX=W-(104*mmS|0),MY=(82*mmS|0),MW=(88*mmS|0),MH=(68*mmS|0);ctx.save();ctx.fillStyle='rgba(0,0,0,.58)';ctx.beginPath();ctx.roundRect(MX-3,MY-3,MW+6,MH+6,5);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;ctx.stroke();
+  const sx=MW/WW,sy=MH/WH;  ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;ctx.strokeRect(MX+(cam.x-W/2)*sx,MY+(cam.y-H/2)*sy,W*sx,H*sy);
   ctx.fillStyle='rgba(255,80,80,.75)';for(const e of enemies)ctx.fillRect(MX+e.x*sx-1,MY+e.y*sy-1,2,2);
   if(PL){const MC={dialga:'#4488ff',palkia:'#ff44aa',kyurem:'#22aaee',rayquaza:'#44ff88',groudon:'#cc4400',kyogre:'#0088ff',wkyurem:'#ff8822',zacian:'#5588ff',miraidon:'#44aaff',koraidon:'#ff6633',mewtwo:'#cc44ff',giratina:'#6633aa',necrozmaD:'#ffdd44',necrozmaW:'#9944ff',hooh:'#ffcc44',lugia:'#aabbdd',garchomp:'#4455cc',charizard:'#ff5522',lucario:'#2244cc',greninja:'#0d6d8e',gardevoir:'#ff44aa'};ctx.fillStyle=MC[PL.ct]||'#fff';ctx.beginPath();ctx.arc(MX+PL.x*sx,MY+PL.y*sy,3,0,Math.PI*2);ctx.fill();}
   ctx.restore();
@@ -2159,9 +2164,9 @@ function drawButtons(){
     if(bd.cd>0&&bd.maxCd>0){ctx.beginPath();ctx.arc(pos.x,pos.y,R-3,-Math.PI/2,-Math.PI/2+(bd.cd/bd.maxCd)*Math.PI*2);ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=6;ctx.stroke();}
     if(isSp&&!lok&&PL.gauge<100){ctx.beginPath();ctx.arc(pos.x,pos.y,R-3,-Math.PI/2,-Math.PI/2+(PL.gauge/100)*Math.PI*2);ctx.strokeStyle=bd.col+'bb';ctx.lineWidth=4;ctx.stroke();}
     if(lok){ctx.strokeStyle='rgba(255,180,50,.5)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(pos.x,pos.y,R-3,0,Math.PI*2);ctx.stroke();}
-    ctx.fillStyle=canUse&&!lok?'#fff':lok?'#996633':'#555';ctx.textAlign='center';ctx.font='bold 10px Arial';
-    const lines=bd.label.split('\n'),sy0=pos.y-lines.length*6+7;for(let li=0;li<lines.length;li++)ctx.fillText(lines[li],pos.x,sy0+li*13);
-    if(bd.cd>0){ctx.fillStyle='#ffaa00';ctx.font='bold 13px Arial';ctx.fillText(bd.cd.toFixed(1),pos.x,pos.y+R-10);}
+    const fs=Math.max(11,Math.min(R*.26,14));ctx.fillStyle=canUse&&!lok?'#fff':lok?'#996633':'#555';ctx.textAlign='center';ctx.font=`bold ${fs}px Arial`;
+    const lines=bd.label.split('\n'),sy0=pos.y-lines.length*(fs*.55)+fs*.55;for(let li=0;li<lines.length;li++)ctx.fillText(lines[li],pos.x,sy0+li*(fs*1.22));
+    if(bd.cd>0){ctx.fillStyle='#ffaa00';ctx.font=`bold ${Math.max(12,R*.28)}px Arial`;ctx.fillText(bd.cd.toFixed(1),pos.x,pos.y+R-8);}
     if(PL.flyActive&&bd.key==='skill2'){ctx.fillStyle='#44ff88';ctx.font='bold 13px Arial';ctx.fillText(PL.flyT.toFixed(1),pos.x,pos.y+R-10);}
     ctx.restore();
   }
@@ -2174,6 +2179,7 @@ function drawJoystick(){
 }
 
 // ── MODE SELECT ───────────────────────────────────────────
+let selScrollY=0,selScrollVY=0,selTouchY0=0,selTouchY1=0,selScrollDragging=false,selScrollMax=0;
 const stars=[];for(let i=0;i<140;i++)stars.push({x:Math.random(),y:Math.random(),sz:Math.random()*2.5+.4,ph:Math.random()*Math.PI*2,sp:.4+Math.random()*.9});
 const CHARS=['dialga','palkia','kyurem','rayquaza','groudon','kyogre','wkyurem','zacian','miraidon','koraidon','mewtwo','giratina','necrozmaD','necrozmaW','hooh','lugia','garchomp','charizard','lucario','greninja','gardevoir'];
 
@@ -2737,12 +2743,18 @@ class Boss{
 }
 
 function getCardLayout(){
-  const PAD=Math.min(W*.02,7),cols=2,rows=11;
-  const cw=Math.min((W-PAD*(cols+1))/cols,170);
-  const titleH=H*.165;const availH=H-titleH-PAD*(rows+1);const ch=Math.min(availH/rows,190);
+  const PAD=Math.max(5,Math.min(W*.02,8)),cols=2;
+  const cw=Math.min((W-PAD*(cols+1))/cols,172);
+  const titleH=H*.14;
+  // カードの高さを画面に合わせる（最低でも80px、最大120px）
+  const ch=Math.max(80,Math.min((H-titleH)*.19,118));
   const totalW=cw*cols+PAD*(cols-1);
-  const sx=(W-totalW)/2,sy=titleH;
+  const sx=(W-totalW)/2,sy=titleH+selScrollY;
   const cards={};CHARS.forEach((c,i)=>{cards[c]={x:sx+(i%2)*(cw+PAD),y:sy+Math.floor(i/2)*(ch+PAD),w:cw,h:ch};});
+  // 最大スクロール量を計算
+  const rows=Math.ceil(CHARS.length/2);
+  const totalH=rows*(ch+PAD)+titleH;
+  selScrollMax=Math.min(0,H-totalH-PAD);
   return cards;
 }
 function drawSelectScreen(){
@@ -2753,8 +2765,19 @@ function drawSelectScreen(){
   ctx.fillStyle='#aaaacc';ctx.font=`${Math.min(10,W*.028)}px Arial`;
   const NMB={dialga:'ディアルガ',palkia:'パルキア',kyurem:'ブラックキュレム',rayquaza:'レックウザ',groudon:'グラードン',kyogre:'カイオーガ',wkyurem:'ホワイトキュレム',zacian:'ザシアン',miraidon:'ミライドン',koraidon:'コライドン',mewtwo:'ミュウツー',giratina:'ギラティナ',necrozmaD:'日食ネクロズマ',necrozmaW:'月食ネクロズマ',hooh:'ホウオウ',lugia:'ルギア',garchomp:'ガブリアス',charizard:'リザードン',lucario:'ルカリオ',greninja:'ゲッコウガ',gardevoir:'サーナイト'};
   ctx.fillText(isBoss?`⚔️ 自機を選択（ボス: ${NMB[bossCt]||'?'}）`:'キャラクターを選択',W/2,H*.158);
+  // カードをクリップ領域内に描画
+  const titleH2=H*.14;
+  ctx.save();ctx.beginPath();ctx.rect(0,titleH2,W,H-titleH2);ctx.clip();
   const L=getCardLayout();for(const ct of CHARS)drawCard(ct,L[ct].x,L[ct].y,L[ct].w,L[ct].h,'player');
-  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`${Math.min(13,W*.036)}px Arial`;ctx.fillText('← 戻る',W/2,H*.955);ctx.textAlign='left';
+  ctx.restore();
+  // スクロールインジケーター
+  if(selScrollMax<0){
+    const sbH=Math.max(30,H*(-H/Math.abs(selScrollMax)));const sbY=titleH2+(H-titleH2-sbH)*(-selScrollY/(-selScrollMax||1));
+    ctx.globalAlpha=.4;ctx.fillStyle='#fff';ctx.beginPath();ctx.roundRect(W-6,sbY,4,sbH,2);ctx.fill();ctx.globalAlpha=1;
+    // スクロールヒント（最初のみ）
+    if(selScrollY===0){const p=.5+.5*Math.sin(now*3);ctx.globalAlpha=p*.7;ctx.fillStyle='#aaaacc';ctx.textAlign='center';ctx.font=`${Math.min(11,W*.028)}px Arial`;ctx.fillText('↓ スクロールできます',W/2,H*.92);ctx.globalAlpha=1;}
+  }
+  ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`${Math.min(13,W*.036)}px Arial`;ctx.fillText('← 戻る',W/2,H*.97);ctx.textAlign='left';
 }
 function drawCard(ct,x,y,w,h,role){
   const MC={dialga:'#4488ff',palkia:'#ff44aa',kyurem:'#22aaee',rayquaza:'#44ff88',groudon:'#cc4400',kyogre:'#0088ff',wkyurem:'#ff8822',zacian:'#5588ff',miraidon:'#44aaff',koraidon:'#ff6633',mewtwo:'#cc44ff',giratina:'#6633aa',necrozmaD:'#ffdd44',necrozmaW:'#9944ff',hooh:'#ffcc44',lugia:'#aabbdd',garchomp:'#4455cc',charizard:'#ff5522',lucario:'#2244cc',greninja:'#0d6d8e',gardevoir:'#ff44aa'};
@@ -2765,7 +2788,7 @@ function drawCard(ct,x,y,w,h,role){
   const cbg=ctx.createLinearGradient(x,y,x+w,y+h);cbg.addColorStop(0,BG0[ct]);cbg.addColorStop(1,BG0[ct].replace(',.95',',.98'));
   ctx.fillStyle=cbg;ctx.fill();ctx.strokeStyle=mc;ctx.lineWidth=1.8;ctx.stroke();ctx.shadowBlur=0;
   const sh=ctx.createLinearGradient(x,y,x,y+h*.28);sh.addColorStop(0,'rgba(255,255,255,.08)');sh.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=sh;ctx.beginPath();ctx.roundRect(x,y,w,h*.28,10);ctx.fill();
-  ctx.textAlign='center';ctx.shadowColor=mc;ctx.shadowBlur=7;ctx.fillStyle=mc;ctx.font=`bold ${Math.min(13,w*.095)}px Arial`;
+  ctx.textAlign='center';ctx.shadowColor=mc;ctx.shadowBlur=7;ctx.fillStyle=mc;ctx.font=`bold ${Math.max(10,Math.min(13,w*.11))|0}px Arial`;
   const NM={dialga:'ディアルガ',palkia:'パルキア',kyurem:'ブラックキュレム',rayquaza:'レックウザ',groudon:'グラードン',kyogre:'カイオーガ',wkyurem:'ホワイトキュレム',zacian:'ザシアン',miraidon:'ミライドン',koraidon:'コライドン',mewtwo:'ミュウツー',giratina:'ギラティナ',necrozmaD:'日食ネクロズマ',necrozmaW:'月食ネクロズマ',hooh:'ホウオウ',lugia:'ルギア',garchomp:'ガブリアス',charizard:'リザードン',lucario:'ルカリオ',greninja:'ゲッコウガ',gardevoir:'サーナイト'};
   ctx.fillText(NM[ct],x+w/2,y+20);ctx.shadowBlur=0;
   ctx.fillStyle='rgba(255,255,255,.5)';ctx.font=`${Math.min(8,w*.063)}px Arial`;
@@ -2832,17 +2855,19 @@ let pendingMode='survival',pendingBossCt='dialga';
 function handleModeTap(tx,ty){
   const cx=W/2,cy=H/2;const bw=Math.min(W*.75,300),bh=60,gap=20;
   const y1=cy-bh-gap/2,y2=cy+gap/2;
-  if(tx>cx-bw/2&&tx<cx+bw/2&&ty>y1&&ty<y1+bh){pendingMode='survival';state='select';}
-  else if(tx>cx-bw/2&&tx<cx+bw/2&&ty>y2&&ty<y2+bh){pendingMode='boss';state='boss_select';}
+  if(tx>cx-bw/2&&tx<cx+bw/2&&ty>y1&&ty<y1+bh){pendingMode='survival';state='select';selScrollY=0;selScrollVY=0;}
+  else if(tx>cx-bw/2&&tx<cx+bw/2&&ty>y2&&ty<y2+bh){pendingMode='boss';state='boss_select';selScrollY=0;selScrollVY=0;}
 }
-function handleBossSelectTap(tx,ty){
+function handleBossSelectTap(tx,ty){if(Math.abs(selTouchY0-ty)>12)return;
+
   const L=getCardLayout();
   for(const ct of CHARS){const{x,y,w,h}=L[ct];const bH=22,bPad=6;
-    if(tx>=x&&tx<=x+w&&ty>=y+h-bH-bPad-4&&ty<=y+h-bPad+4){bossCt=ct;state='select';return;}}
+    if(tx>=x&&tx<=x+w&&ty>=y+h-bH-bPad-4&&ty<=y+h-bPad+4){bossCt=ct;state='select';selScrollY=0;selScrollVY=0;return;}}
   // Back button
   const bkY=H*.92,bkX=W/2;if(Math.hypot(tx-bkX,ty-bkY)<40){state='mode_select';}
 }
-function handleSelectTap(tx,ty){
+function handleSelectTap(tx,ty){if(Math.abs(selTouchY0-ty)>12)return;// スクロール中はタップ無視
+
   const L=getCardLayout();
   for(const ct of CHARS){const{x,y,w,h}=L[ct];const bH=22,bPad=6;
     if(tx>=x&&tx<=x+w&&ty>=y+h-bH-bPad-4&&ty<=y+h-bPad+4){startGame(ct,pendingMode,bossCt);return;}}
@@ -2880,7 +2905,7 @@ function drawBossSelectScreen(){
   for(const s of stars){ctx.globalAlpha=.25+.3*Math.sin(now*s.sp+s.ph);ctx.fillStyle='#ff8844';ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.sz*.8,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.shadowColor='#ff4400';ctx.shadowBlur=24;ctx.fillStyle='#fff';ctx.font=`bold ${Math.min(24,W*.068)}px Arial`;ctx.fillText('⚔️ ボスを選択',W/2,H*.09);ctx.shadowBlur=0;
   ctx.fillStyle='#ffaa88';ctx.font=`${Math.min(11,W*.032)}px Arial`;ctx.fillText('このポケモンと戦え！',W/2,H*.14);
-  const L=getCardLayout();for(const ct of CHARS){const{x,y,w,h}=L[ct];drawCard(ct,x,y,w,h,'boss');}
+  const titleHb=H*.14;ctx.save();ctx.beginPath();ctx.rect(0,titleHb,W,H-titleHb);ctx.clip();const L=getCardLayout();for(const ct of CHARS){const{x,y,w,h}=L[ct];drawCard(ct,x,y,w,h,'boss');}ctx.restore();
   // Back button
   ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.3)';ctx.font=`${Math.min(13,W*.036)}px Arial`;ctx.fillText('← 戻る',W/2,H*.92);ctx.textAlign='left';
 }
@@ -2904,6 +2929,7 @@ function drawGameOver(){
 let lastT=0;
 function loop(t){
   requestAnimationFrame(loop);const dt=Math.min((t-lastT)/1000,.05);lastT=t;now+=dt;
+  updSelScroll(dt);
   if(shk.d>0){shk.d-=dt;shk.x=(Math.random()-.5)*shk.i*2;shk.y=(Math.random()-.5)*shk.i*2;shk.i*=.88;}else{shk.x=shk.y=0;}
   fl.a=Math.max(0,fl.a-dt*3);
   try{
